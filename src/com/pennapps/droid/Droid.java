@@ -1,153 +1,164 @@
 package com.pennapps.droid;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.Socket;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-import java.util.Enumeration;
-
 import android.app.Activity;
-import android.media.MediaRecorder;
-import android.net.DhcpInfo;
-import android.net.wifi.WifiManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
-import android.util.Log;
 import android.widget.TextView;
+import android.widget.Toast;
 
-public class Droid extends Activity {
-    /** Called when the activity is first created. */
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.main);
-        
-        TextView tv = (TextView) findViewById(R.id.text_box);
-        String currentIP = getLocalIpAddress();
-        tv.setText("Current IP is: " + currentIP);
-        
-        new Thread(new MediaBroadcaster()).start();
-    }
+public class Droid extends Activity implements SensorEventListener {
+	// Accelerometer X, Y, and Z values
+	private TextView accelXValue;
+	private TextView accelYValue;
+	private TextView accelZValue;
+	private TextView linaccelXValue;
+	private TextView linaccelYValue;
+	private TextView linaccelZValue;
+	
+	private float x, y, z;
+	private float last_x, last_y, last_z;
+	private long xtime, ytime, ztime;
+    private long lastUpdate = -1;
     
-    private class MediaBroadcaster implements Runnable {
-    	public static final String SERVERIP = "165.123.207.229"; // HARDCODED
-    	public static final int SERVERPORT = 14444;
-    	
-		@Override
-		public void run() {
-			try {
-				InetAddress addr = InetAddress.getByName(getLocalIpAddress());
-				Log.d("MediaBroadcaster", "S: Prepping Media Broadcaster..." + addr.toString());
+    /* Detection constants -- change to tweak performance */
+	private static final long TIME_THRESHOLD = 1000;
+	private static final float MOVEMENT_THRESHOLD = 6;
+    private static final float FILTERING_FACTOR = 0.3f;
+
+	// Orientation X, Y, and Z values
+	private TextView orientXValue;
+	private TextView orientYValue;
+	private TextView orientZValue;
+
+	private SensorManager sensorManager = null;
+
+	/** Called when the activity is first created. */
+	@Override
+	public void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		// Get a reference to a SensorManager
+		sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+		setContentView(R.layout.main);
+
+		// Capture accelerometer related view elements
+		accelXValue = (TextView) findViewById(R.id.accel_x_value);
+		accelYValue = (TextView) findViewById(R.id.accel_y_value);
+		accelZValue = (TextView) findViewById(R.id.accel_z_value);
+		linaccelXValue = (TextView) findViewById(R.id.linaccel_x_value);
+		linaccelYValue = (TextView) findViewById(R.id.linaccel_y_value);
+		linaccelZValue = (TextView) findViewById(R.id.linaccel_z_value);
+
+		// Capture orientation related view elements
+		orientXValue = (TextView) findViewById(R.id.orient_x_value);
+		orientYValue = (TextView) findViewById(R.id.orient_y_value);
+		orientZValue = (TextView) findViewById(R.id.orient_z_value);
+
+		// Initialize accelerometer related view elements
+		accelXValue.setText("0.00");
+		accelYValue.setText("0.00");
+		accelZValue.setText("0.00");
+		linaccelXValue.setText("0.00");
+		linaccelYValue.setText("0.00");
+		linaccelZValue.setText("0.00");
+
+		// Initialize orientation related view elements
+		orientXValue.setText("0.00");
+		orientYValue.setText("0.00");
+		orientZValue.setText("0.00");       
+	}
+
+	// This method will update the UI on new sensor events
+	public void onSensorChanged(SensorEvent sensorEvent) {
+		synchronized (this) {
+					
+			if (sensorEvent.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+				accelXValue.setText(Float.toString(sensorEvent.values[0]));
+				accelYValue.setText(Float.toString(sensorEvent.values[1]));
+				accelZValue.setText(Float.toString(sensorEvent.values[2]));
 				
-				TextView tv = (TextView) findViewById(R.id.text_box);
-				tv.setText("Current IP is: " + addr.toString());
-				
-				Socket socket = new Socket(addr, SERVERPORT);
-				ParcelFileDescriptor pfd = ParcelFileDescriptor.fromSocket(socket);
-				
-				MediaRecorder recorder = new MediaRecorder();
-				/*
-				recorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
-				recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-				recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H263);
-				*/
-				recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-				recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP/*MPEG_4*/);
-				recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-				
-				recorder.setOutputFile(pfd.getFileDescriptor());
-				recorder.prepare();
-				recorder.start();
-				
-				Log.d("MediaBroadcaster", "S: Streaming...");
-				
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
+				long curTime = System.currentTimeMillis();
+				// only allow one update every 100ms.
+				if ((curTime - lastUpdate) > 100) {
+					long diffTime = (curTime - lastUpdate);
+					lastUpdate = curTime;
+					
+					float[] values = sensorEvent.values;
+					
+					x = sensorEvent.values[0];
+					y = sensorEvent.values[1];
+					z = sensorEvent.values[2];
+					
+					last_x = (x * FILTERING_FACTOR) + (last_x * (1.0f - FILTERING_FACTOR));
+					last_y = (y * FILTERING_FACTOR) + (last_y * (1.0f - FILTERING_FACTOR));
+					last_z = (z * FILTERING_FACTOR) + (last_z * (1.0f - FILTERING_FACTOR));
+
+					float xspeed = x - last_x;
+					float yspeed = y - last_y;
+					float zspeed = z - last_z;
+					if (xspeed > MOVEMENT_THRESHOLD && (curTime-xtime > TIME_THRESHOLD) ) {
+						xtime = curTime;
+						Toast.makeText(getApplicationContext(), "X direction1", Toast.LENGTH_SHORT).show();
+					}
+					else if (xspeed < -MOVEMENT_THRESHOLD && (curTime-xtime > TIME_THRESHOLD)) {
+						xtime = curTime;
+						Toast.makeText(getApplicationContext(), "X direction2", Toast.LENGTH_SHORT).show();
+					}
+					if (yspeed > MOVEMENT_THRESHOLD && (curTime-ytime > TIME_THRESHOLD)) {
+						ytime = curTime;
+						Toast.makeText(getApplicationContext(), "Y direction1", Toast.LENGTH_SHORT).show();
+					}
+					else if (yspeed < -MOVEMENT_THRESHOLD && (curTime-ytime > TIME_THRESHOLD)) {
+						ytime = curTime;
+						Toast.makeText(getApplicationContext(), "Y direction2", Toast.LENGTH_SHORT).show();
+					}
+					if (zspeed > MOVEMENT_THRESHOLD && (curTime-ztime > TIME_THRESHOLD)) {
+						ztime = curTime;
+						Toast.makeText(getApplicationContext(), "Z direction1", Toast.LENGTH_SHORT).show();
+					}
+					else if (zspeed < -MOVEMENT_THRESHOLD && (curTime-ztime > TIME_THRESHOLD)) {
+						ztime = curTime;
+						Toast.makeText(getApplicationContext(), "Z direction2", Toast.LENGTH_SHORT).show();
+					}
+					
+					linaccelXValue.setText(Float.toString(xspeed));
+					linaccelYValue.setText(Float.toString(yspeed));
+					linaccelZValue.setText(Float.toString(zspeed));
+					
+					/*
+					last_x = x;
+					last_y = y;
+					last_z = z;*/
+				}
+			}
+
+			if (sensorEvent.sensor.getType() == Sensor.TYPE_ORIENTATION) {
+				orientXValue.setText(Float.toString(sensorEvent.values[0]));
+				orientYValue.setText(Float.toString(sensorEvent.values[1]));
+				orientZValue.setText(Float.toString(sensorEvent.values[2]));       
 			}
 		}
-    	
-    }
-    
-    public String getLocalIpAddress() {
-    	try {
-    		for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();){
-    			NetworkInterface intf = en.nextElement();
-    			for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements(); ){
-    				InetAddress inetAddress = enumIpAddr.nextElement();
-    				if (!inetAddress.isLoopbackAddress()) {
-    					return inetAddress.getHostAddress().toString();
-    				}
-    			}
-    		}
-    	} catch (SocketException ex) {
-    		Log.e("IP", ex.toString());
-    	}
-    	return null;
-    }
-    
-    public String getLocalIP(){
-    	WifiManager wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);    	
-    	//WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-    	DhcpInfo dhcpInfo = wifiManager.getDhcpInfo(); 
+	}
 
-    	Log.d("IP", "dhcpInfo IP (int) is " + dhcpInfo.ipAddress);
-    	Log.d("IP", "dhcpInfo IP (string) is " + intToIp(dhcpInfo.ipAddress));
-    	
-    	return intToIp(dhcpInfo.ipAddress);
-    }
-    
-    public static String intToIp(int i) {
-        return ((i >> 24 ) & 0xFF) + "." +
-               ((i >> 16 ) & 0xFF) + "." +
-               ((i >>  8 ) & 0xFF) + "." +
-               ( i        & 0xFF);
-    }
-    
-    private class ClientRunnable implements Runnable {
-    	public static final String SERVERIP = "165.123.207.229"; // HARDCODED
-    	public static final int SERVERPORT = 14444;
-    	
-            @Override
-            public void run() {
-                    try {
-                    	TextView tv = (TextView) findViewById(R.id.text_box);
-                    	tv.setText("C: Connecting...");
+	public void onAccuracyChanged(Sensor arg0, int arg1) {
+		// TODO Auto-generated method stub
+	}
 
-                    	// Retrieve the ServerName
-                    	System.out.println("sdfsdf");
-                    	InetAddress serverAddr = InetAddress.getByName(SERVERIP);
+	@Override
+	protected void onResume() {
+		super.onResume();
+		// Register this class as a listener for the accelerometer sensor
+		sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_NORMAL);
+		sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION), SensorManager.SENSOR_DELAY_NORMAL);
+	}
 
-                    	Log.d("UDP", "C: Connecting...");
-                    	/* Create new UDP-Socket */
-                    	DatagramSocket socket = new DatagramSocket();
+	@Override
+	protected void onStop() {
+		// Unregister the listener
+		sensorManager.unregisterListener(this);
+		super.onStop();
+	}
 
-                    	/* Prepare some data to be sent. */
-                    	byte[] buf = ("Hello from Client").getBytes();
-
-                    	/* Create UDP-packet with
-                    	 * data & destination(url+port) */
-                    	DatagramPacket packet = new DatagramPacket(buf, buf.length, serverAddr, SERVERPORT);
-                    	Log.d("UDP", "C: Sending: '" + new String(buf) + "'");
-
-                    	/* Send out the packet */
-                    	socket.send(packet);
-                    	Log.d("UDP", "C: Sent.");
-                        Log.d("UDP", "C: Done.");
-
-                    	//TextView tv = (TextView) findViewById(R.id.text_box);
-                    	tv.setText("C: Done.");
-
-                    } catch (Exception e) {
-                    	Log.e("UDP", "C: Error", e);
-                    	TextView tv = (TextView) findViewById(R.id.text_box);
-                    	tv.setText("C: Error");
-                    }
-            }
-    }
 }
