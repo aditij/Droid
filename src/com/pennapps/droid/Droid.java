@@ -11,7 +11,7 @@ public class Droid extends Activity {
         setContentView(R.layout.main);
     }
     
-   
+   //dasfasdfasdf asdf
     
-    // Make my changes thanat
+   // Make my changes thanat
 }
