@@ -11,4 +11,5 @@ public class Droid extends Activity {
         setContentView(R.layout.main);
     }
     // More comments
+    // hello
 }
