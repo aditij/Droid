@@ -8,7 +8,7 @@
         <TextView
             android:id="@+id/accelerometer_label"
             android:layout_column="1"
-            android:text="Accelerometer"
+            android:text="Orientation"
             android:textSize="9pt"
             android:padding="3dip" />
     </TableRow>
@@ -63,7 +63,7 @@
         <TextView
             android:id="@+id/linaccelerometer_label"
             android:layout_column="1"
-            android:text="Linear Accelerometer"
+            android:text="Orientation speed"
             android:textSize="9pt"
             android:padding="3dip" />
     </TableRow>
@@ -118,7 +118,7 @@
         <TextView
             android:id="@+id/orientation_label"
             android:layout_column="1"
-            android:text="Orientation"
+            android:text="Last averaged positions"
             android:textSize="9pt"
             android:padding="3dip" />
     </TableRow>
