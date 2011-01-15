@@ -10,5 +10,8 @@ public class Droid extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
     }
+    
    
+    
+    // Make my changes thanat
 }
