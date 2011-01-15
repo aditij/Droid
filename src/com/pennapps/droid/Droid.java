@@ -10,6 +10,5 @@ public class Droid extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
     }
-    // More comms
-    // hello adfafasdf
+   
 }
