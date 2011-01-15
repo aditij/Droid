@@ -10,6 +10,6 @@ public class Droid extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
     }
-    // More comments
+    // More comments 123
     // hello
 }
