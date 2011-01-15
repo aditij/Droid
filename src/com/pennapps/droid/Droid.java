@@ -12,7 +12,3 @@ public class Droid extends Activity {
     }
     // More comments
 }
-
-
-// HELLOWWWWW!!!
-// HELLOWWWWW!!! 123
