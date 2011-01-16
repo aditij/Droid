@@ -10,6 +10,8 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.util.FloatMath;
+import android.view.Display;
+import android.view.GestureDetector.OnDoubleTapListener;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnTouchListener;
@@ -19,8 +21,8 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 public class Droid extends Activity implements SensorEventListener,
-OnTouchListener {
-
+OnTouchListener, OnDoubleTapListener {
+	
 	// These matrices will be used to move and zoom image
 	Matrix matrix = new Matrix();
 	Matrix savedMatrix = new Matrix();
@@ -31,23 +33,26 @@ OnTouchListener {
 	static final int ZOOM = 2;
 	int mode = NONE;
 
-	// Zooming values
+	// Flags
 	PointF start = new PointF();
 	PointF mid = new PointF();
 	float oldDist = 1f; // used to calculate zoom update threshold
 	float lastZoomDist = 1f; // used to send zoom scale values
+	float lastDragDist = 1f; // used to send drag values
+	private long lastSensorUpdate = -1;
+	private long lastZoomUpdate = -1;
+	private long lastPinchUpdate = -1;
+	private long lastDragUpdate = -1;
 
 	// Accelerometer values
 	private float x = 0, y = 0, z = 0;
 	private float last_x = 0, last_y = 0, last_z = 0;
-	private long lastUpdate = -1;
-	private long lastZoomUpdate = -1;
-
+	
+	
 	/* Detection constants -- change to tweak performance */
 	private static final long TIME_THRESHOLD = 100;
 	private static final float VELOCITY_THRESHOLD = 0.10f;
 	private static final float FILTERING_FACTOR = 0.85f;
-	
 	
 	private static final int MAX_X = 360;
 	private static final float X_THRESHOLD = 50;
@@ -68,6 +73,9 @@ OnTouchListener {
 	private float xOffset;
 	private String ipval;
 	private boolean connectionValid = false;
+	
+	private int width;
+	private int height;
 
 	/** Called when the activity is first created. */
 	@Override
@@ -78,26 +86,19 @@ OnTouchListener {
                                 WindowManager.LayoutParams.FLAG_FULLSCREEN); 
 		sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 		setContentView(R.layout.camview);
-
-		/*
-		orientXValue = (TextView) findViewById(R.id.orient_x_value);
-		orientYValue = (TextView) findViewById(R.id.orient_y_value);
-		orientZValue = (TextView) findViewById(R.id.orient_z_value);
 		
-		// Initialize orientation
-		orientXValue.setText("0.00");
-		orientYValue.setText("0.00");
-		orientZValue.setText("0.00");
-		*/
+		WindowManager w = getWindowManager(); 
+	    Display d = w.getDefaultDisplay(); 
+	    width = d.getWidth(); 
+	    height = d.getHeight(); 
+
 		ImageView view1 = (ImageView) findViewById(R.id.imageView);
 		view1.setOnTouchListener(this);
 
-		
 		xOffset = -1; 
 		
 		TextView tv = (TextView) findViewById(R.id.orientation_label);
 		tv.setText("You are now connected to " + ipval);
-		
 		
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 	}
@@ -114,7 +115,7 @@ OnTouchListener {
 	public boolean onTouch(View v, MotionEvent event) {
 		ImageView view = (ImageView) v;
 
-		// Handle touch events here...
+		// Handle touch events
 		switch (event.getAction() & MotionEvent.ACTION_MASK) {
 		case MotionEvent.ACTION_DOWN:
 			savedMatrix.set(matrix);
@@ -138,12 +139,20 @@ OnTouchListener {
 			long curTime = System.currentTimeMillis();
 			
 			if (mode == DRAG) {
-				break;
+				if ((curTime - lastDragUpdate) > TIME_THRESHOLD) {
+					float changeInX = (event.getX() - start.x) / (width);
+					float changeInY = (event.getY() - start.y) / (height);
+					lastDragUpdate = curTime;
+					start.set(event.getX(), event.getY());
+					DataSender.SendDimension(this, Float.toString(last_x), Float
+							.toString(last_y), Float.toString(last_z), "1", Float.toString(changeInX),
+							Float.toString(changeInY), "0");
+				}
 			} else if (mode == ZOOM) {
 				float newDist = findDistance(event);
 				
-				if (newDist > 10f && (curTime - lastUpdate) > TIME_THRESHOLD) {
-					lastUpdate = curTime;
+				if (newDist > 10f && (curTime - lastPinchUpdate) > TIME_THRESHOLD) {
+					lastPinchUpdate = curTime;
 					
 					matrix.set(savedMatrix);
 					float scale = newDist / lastZoomDist;
@@ -156,7 +165,7 @@ OnTouchListener {
 					// ****** SEND SCALE VARIABLE HERE ******
 					DataSender.SendDimension(this, Float.toString(last_x), Float
 							.toString(last_y), Float.toString(last_z), Float
-							.toString(scale));
+							.toString(scale), "0", "0", "0");
 
 					//matrix.postScale(newDist/oldDist, newDist/oldDist, mid.x, mid.y);
 				}
@@ -187,8 +196,8 @@ OnTouchListener {
 				}
 
 				// only allow one update every 100ms.
-				if ((curTime - lastUpdate) > TIME_THRESHOLD) {
-					lastUpdate = curTime;
+				if ((curTime - lastSensorUpdate) > TIME_THRESHOLD) {
+					lastSensorUpdate = curTime;
 
 					// CURRENT VALUES
 					x = sensorEvent.values[0];
@@ -229,12 +238,26 @@ OnTouchListener {
 
 					if (sendChange) {
 						DataSender.SendDimension(this, Float.toString(last_x), Float
-								.toString(last_y), Float.toString(last_z), "1");
+								.toString(last_y), Float.toString(last_z), "1", "0", "0", "0");
 					}
 
 				}
 			}
 		}
+	}
+	
+	public boolean onDoubleTap(MotionEvent event) {
+		DataSender.SendDimension(this, Float.toString(last_x), Float
+				.toString(last_y), Float.toString(last_z), "1", "0", "0", "1");
+		return true;
+	}
+	
+	public boolean onDoubleTapEvent(MotionEvent event) {
+		return false;
+	}
+	
+	public boolean onSingleTapConfirmed(MotionEvent e) {
+		return false;
 	}
 	
 	/** Determine the distance between the first two fingers */

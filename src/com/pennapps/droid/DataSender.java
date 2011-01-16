@@ -16,7 +16,10 @@ public class DataSender {
 	
 	private static int packetNum = 1;
 
-	public static void SendDimension(final Droid droid, final String x, final String y, final String z, final String zoom) {
+	public static void SendDimension(final Droid droid, 
+			final String x, final String y, final String z, 
+			final String zoom, final String deltaX, final String deltaY,
+			final String reset) {
 
 		new Thread(new Runnable() {
 
@@ -26,7 +29,7 @@ public class DataSender {
 				try {
 					InetAddress serverAddr = InetAddress.getByName(droid.getIp());
 
-					byte[] buf = (y + "," + x + "," + z + "," + zoom ).getBytes();
+					byte[] buf = (y + "," + x + "," + z + "," + zoom + "," + deltaX + "," + deltaY + "," + reset).getBytes();
 					//packetNum++;
 					
 					DatagramSocket socket = new DatagramSocket();
