@@ -158,7 +158,7 @@ OnTouchListener {
 							.toString(last_y), Float.toString(last_z), Float
 							.toString(scale));
 
-					matrix.postScale(newDist/oldDist, newDist/oldDist, mid.x, mid.y);
+					//matrix.postScale(newDist/oldDist, newDist/oldDist, mid.x, mid.y);
 				}
 			}
 			break;
