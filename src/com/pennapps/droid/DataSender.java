@@ -9,10 +9,10 @@ import android.util.Log;
 
 public class DataSender {
 
-	public static final String SERVERIP = "158.130.105.143"; // HARDCODED
+	public static final String SERVERIP = "158.130.105.136"; // HARDCODED
 	public static final int SERVERPORT = 14444;
 
-	public static void SendDimension(final String x, final String y, final String z) {
+	public static void SendDimension(final String x, final String y, final String z, final String zoom) {
 
 		new Thread(new Runnable() {
 
@@ -22,7 +22,7 @@ public class DataSender {
 				try {
 					InetAddress serverAddr = InetAddress.getByName(SERVERIP);
 
-					byte[] buf = (x + "," + y + "," + z).getBytes();
+					byte[] buf = (y + "," + x + "," + z + "," + zoom ).getBytes();
 
 					DatagramSocket socket = new DatagramSocket();
 
@@ -43,5 +43,7 @@ public class DataSender {
 
 		}).start();
 	}
+	
+	
 
 }
