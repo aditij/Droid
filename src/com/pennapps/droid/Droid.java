@@ -1,5 +1,8 @@
 package com.pennapps.droid;
 
+import java.util.Timer;
+import java.util.TimerTask;
+
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
 import android.graphics.Matrix;
@@ -11,7 +14,9 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.util.FloatMath;
 import android.view.Display;
-import android.view.GestureDetector.OnDoubleTapListener;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnTouchListener;
@@ -21,7 +26,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 public class Droid extends Activity implements SensorEventListener,
-OnTouchListener, OnDoubleTapListener {
+OnTouchListener {
 	
 	// These matrices will be used to move and zoom image
 	Matrix matrix = new Matrix();
@@ -30,7 +35,7 @@ OnTouchListener, OnDoubleTapListener {
 	// Zoom states
 	static final int NONE = 0;
 	static final int DRAG = 1;
-	static final int ZOOM = 2;
+	static final int ZOOMING = 2;
 	int mode = NONE;
 
 	// Flags
@@ -46,8 +51,10 @@ OnTouchListener, OnDoubleTapListener {
 
 	// Accelerometer values
 	private float x = 0, y = 0, z = 0;
+
+	/* UPDATE VARIABLES  */
 	private float last_x = 0, last_y = 0, last_z = 0;
-	
+	private float zoom=1, deltaX=0, deltaY=0;
 	
 	/* Detection constants -- change to tweak performance */
 	private static final long TIME_THRESHOLD = 100;
@@ -55,18 +62,15 @@ OnTouchListener, OnDoubleTapListener {
 	private static final float FILTERING_FACTOR = 0.85f;
 	
 	private static final int MAX_X = 360;
-	private static final float X_THRESHOLD = 50;
 	private static final int MAX_Y = 180;
-	private static final float Y_THRESHOLD = 50;
 	private static final int MAX_Z = 180;
+	private static final int DEGREES = 360;
+	
+	private static final float X_THRESHOLD = 50;
+	private static final float Y_THRESHOLD = 50;
 	private static final float Z_THRESHOLD = 50;
 	
-	private static final int DEGREES = 360;
-
-	// Orientation X, Y, and Z values
-	//private TextView orientXValue;
-	//private TextView orientYValue;
-	//private TextView orientZValue;
+	
 
 	private SensorManager sensorManager = null;
 	
@@ -76,6 +80,9 @@ OnTouchListener, OnDoubleTapListener {
 	
 	private int width;
 	private int height;
+	
+	private Timer timer;
+	private TimerTask task;
 
 	/** Called when the activity is first created. */
 	@Override
@@ -101,7 +108,43 @@ OnTouchListener, OnDoubleTapListener {
 		tv.setText("You are now connected to " + ipval);
 		
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        
+        timer = new Timer();
+        
 	}
+	
+	public void sendDimensions(){
+		sendDimensions(0);
+	}
+	// 1 if reset requested
+	public synchronized void sendDimensions(int reset){
+		DataSender.SendDimension(this, 
+				Float.toString(last_x), Float.toString(last_y),
+				Float.toString(last_z), Float.toString(zoom),
+				Float.toString(deltaX), Float.toString(deltaY), 
+				Integer.toString(reset));
+		zoom = 1;
+		deltaX = 0;
+		deltaY = 0;
+	}
+	
+	
+	public boolean onCreateOptionsMenu(Menu menu){
+    	MenuInflater inflater = getMenuInflater();
+    	inflater.inflate(R.menu.optionsmenu, menu);
+    	return true;
+    }
+    
+	 public boolean onOptionsItemSelected(MenuItem item){
+	    	// Handle item selection
+	        switch (item.getItemId()) {
+	        case R.id.reset_view:
+	        	sendDimensions(1);
+	            return true;
+	        default:
+	            return super.onOptionsItemSelected(item);
+	        }
+	    }
 	
 	public void setConnectionStatus(boolean b){
 		connectionValid = b;
@@ -128,7 +171,7 @@ OnTouchListener, OnDoubleTapListener {
 				lastZoomDist = oldDist;
 				savedMatrix.set(matrix);
 				findMidPoint(mid, event);
-				mode = ZOOM;
+				mode = ZOOMING;
 			}
 			break;
 		case MotionEvent.ACTION_UP:
@@ -140,32 +183,24 @@ OnTouchListener, OnDoubleTapListener {
 			
 			if (mode == DRAG) {
 				if ((curTime - lastDragUpdate) > TIME_THRESHOLD) {
-					float changeInX = (event.getX() - start.x) / (width);
-					float changeInY = (event.getY() - start.y) / (height);
+					deltaX = (event.getX() - start.x) / (width);
+					deltaY = (event.getY() - start.y) / (height);
 					lastDragUpdate = curTime;
 					start.set(event.getX(), event.getY());
-					DataSender.SendDimension(this, Float.toString(last_x), Float
-							.toString(last_y), Float.toString(last_z), "1", Float.toString(changeInX),
-							Float.toString(changeInY), "0");
 				}
-			} else if (mode == ZOOM) {
+			} else if (mode == ZOOMING) {
 				float newDist = findDistance(event);
 				
 				if (newDist > 10f && (curTime - lastPinchUpdate) > TIME_THRESHOLD) {
 					lastPinchUpdate = curTime;
 					
 					matrix.set(savedMatrix);
-					float scale = newDist / lastZoomDist;
+					zoom = newDist / lastZoomDist;
 					
 					if ((curTime - lastZoomUpdate) > TIME_THRESHOLD){
 						lastZoomUpdate = curTime;
 						lastZoomDist = newDist;
 					}
-
-					// ****** SEND SCALE VARIABLE HERE ******
-					DataSender.SendDimension(this, Float.toString(last_x), Float
-							.toString(last_y), Float.toString(last_z), Float
-							.toString(scale), "0", "0", "0");
 
 					//matrix.postScale(newDist/oldDist, newDist/oldDist, mid.x, mid.y);
 				}
@@ -237,27 +272,13 @@ OnTouchListener, OnDoubleTapListener {
 					}
 
 					if (sendChange) {
-						DataSender.SendDimension(this, Float.toString(last_x), Float
-								.toString(last_y), Float.toString(last_z), "1", "0", "0", "0");
+//						DataSender.SendDimension(this, Float.toString(last_x), Float
+//								.toString(last_y), Float.toString(last_z), "1", "0", "0", "0");
 					}
 
 				}
 			}
 		}
-	}
-	
-	public boolean onDoubleTap(MotionEvent event) {
-		DataSender.SendDimension(this, Float.toString(last_x), Float
-				.toString(last_y), Float.toString(last_z), "1", "0", "0", "1");
-		return true;
-	}
-	
-	public boolean onDoubleTapEvent(MotionEvent event) {
-		return false;
-	}
-	
-	public boolean onSingleTapConfirmed(MotionEvent e) {
-		return false;
 	}
 	
 	/** Determine the distance between the first two fingers */
@@ -290,12 +311,22 @@ OnTouchListener, OnDoubleTapListener {
 				SensorManager.SENSOR_DELAY_UI);
 		
 		ipval = getIntent().getExtras().getString("ip");
+		
+		task = new TimerTask(){
+			@Override
+			public void run() {
+				sendDimensions();
+			}
+        };
+		timer.schedule(task, 0, TIME_THRESHOLD);
+		
 	}
 
 	@Override
 	protected void onStop() {
 		// Unregister the listener
 		sensorManager.unregisterListener(this);
+		task.cancel();
 		super.onStop();
 	}
 
@@ -303,6 +334,7 @@ OnTouchListener, OnDoubleTapListener {
 	protected void onPause() {
 		// Unregister the listener
 		sensorManager.unregisterListener(this);
+		task.cancel();
 		super.onPause();
 	}
 

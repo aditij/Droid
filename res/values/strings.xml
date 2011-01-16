@@ -4,4 +4,5 @@
     <string name="app_name">DroidXtend</string>
 <string name="ok_text">Connect</string>
 <string name="labelstring">1. Start Maya plug-in on your computer\n2. Enter the computer\'s IP address:\n</string>
+<string name="reset">Reset View</string>
 </resources>
