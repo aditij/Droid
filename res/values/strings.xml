@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="hello">Hello World, Droid!</string>
-    <string name="app_name">Droid</string>
+    <string name="app_name">DroidXtend</string>
+<string name="ok_text">Connect</string>
+<string name="labelstring">1. Start Maya plug-in on your computer\n2. Enter the computer\'s IP address:\n</string>
 </resources>
