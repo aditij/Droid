@@ -37,6 +37,11 @@ OnTouchListener {
 	static final int DRAG = 1;
 	static final int ZOOMING = 2;
 	int mode = NONE;
+	
+	static final int WORK_MODE = 0;
+	static final int CRUISE_MODE = 1;
+	int workmode = WORK_MODE;
+	boolean holding = false;
 
 	// Flags
 	PointF start = new PointF();
@@ -76,7 +81,7 @@ OnTouchListener {
 	
 	private float xOffset;
 	private String ipval;
-	private boolean connectionValid = false;
+	private boolean connectionValid = true;
 	
 	private int width;
 	private int height;
@@ -118,14 +123,16 @@ OnTouchListener {
 	}
 	// 1 if reset requested
 	public synchronized void sendDimensions(int reset){
-		DataSender.SendDimension(this, 
-				Float.toString(last_x), Float.toString(last_y),
-				Float.toString(last_z), Float.toString(zoom),
-				Float.toString(deltaX), Float.toString(deltaY), 
-				Integer.toString(reset));
-		zoom = 1;
-		deltaX = 0;
-		deltaY = 0;
+		if ((holding && workmode == WORK_MODE) || reset == 1 || workmode == CRUISE_MODE){
+			DataSender.SendDimension(this, 
+					Float.toString(last_x), Float.toString(last_y),
+					Float.toString(last_z), Float.toString(zoom),
+					Float.toString(deltaX), Float.toString(deltaY), 
+					Integer.toString(reset));
+			zoom = 1;
+			deltaX = 0;
+			deltaY = 0;
+		}
 	}
 	
 	
@@ -141,6 +148,12 @@ OnTouchListener {
 	        case R.id.reset_view:
 	        	sendDimensions(1);
 	            return true;
+	        case R.id.work_mode:
+	        	workmode = WORK_MODE;
+	        	return true;
+	        case R.id.cruise_mode:
+	        	workmode = CRUISE_MODE;
+	        	return true;
 	        default:
 	            return super.onOptionsItemSelected(item);
 	        }
@@ -177,10 +190,11 @@ OnTouchListener {
 		case MotionEvent.ACTION_UP:
 		case MotionEvent.ACTION_POINTER_UP:
 			mode = NONE;
+			holding = false;
 			break;
 		case MotionEvent.ACTION_MOVE:
 			long curTime = System.currentTimeMillis();
-			
+			holding = true;
 			if (mode == DRAG) {
 				if ((curTime - lastDragUpdate) > TIME_THRESHOLD) {
 					deltaX = (event.getX() - start.x) / (width);
